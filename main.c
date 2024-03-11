@@ -3,9 +3,10 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define K 256
-#define N 1000
+#define N 10000
 
 void generate_odd_256bit_integer(BIGNUM *num) {
     if (!BN_rand(num, K, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ODD)) {
@@ -13,6 +14,47 @@ void generate_odd_256bit_integer(BIGNUM *num) {
         exit(EXIT_FAILURE);
     }
 }
+
+bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
+    if (strlen(combined_factors) == 0) return false; // No factors provided
+
+    BIGNUM *remainder = BN_new();
+    BIGNUM *divisor = BN_new();
+    BIGNUM *quotient = BN_new();
+    BIGNUM *one = BN_new();
+    BIGNUM *temp_num = BN_dup(num); // Duplicate num to keep original number intact
+    BN_one(one); // Initialize 'one' as a BIGNUM representation of 1
+
+    char *token = strtok(combined_factors, ",");
+    while (token != NULL) {
+        unsigned long factor_val = strtoul(token, NULL, 10);
+        BN_set_word(divisor, factor_val);
+
+        // Divide temp_num by divisor as long as there's no remainder
+        do {
+            BN_div(quotient, remainder, temp_num, divisor, ctx); // quotient = temp_num / divisor, remainder = temp_num % divisor
+
+            if (BN_cmp(remainder, one) < 0) { // If remainder is 0, division is exact
+                BN_copy(temp_num, quotient); // Update temp_num with quotient for next iteration
+            }
+        } while (BN_is_zero(remainder)); // Continue while division is exact (remainder is 0)
+
+        token = strtok(NULL, ",");
+    }
+
+    // After trying to divide by all factors, check if temp_num has been reduced to 1
+    bool is_factorable = BN_cmp(temp_num, one) == 0;
+
+    // Cleanup
+    BN_free(remainder);
+    BN_free(divisor);
+    BN_free(quotient);
+    BN_free(one);
+    BN_free(temp_num);
+
+    return is_factorable;
+}
+
 
 // Helper method for factorization
 char* factorize(unsigned int n) {
@@ -113,6 +155,42 @@ int main() {
     for (int i = 0; i < N; i++) {
         printf("Combined factors for number %d: %s\n", i, combined_factors[i]);
     }
+
+    // Allocate memory for the verdicts array
+    bool *verdicts = (bool *)malloc(N * sizeof(bool));
+    if (!verdicts) {
+        fprintf(stderr, "Allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Check divisibility for each number by its combined factors
+    for (int i = 0; i < N; i++) {
+        verdicts[i] = can_be_factored_by_combined_factors(nums[i], combined_factors[i], bn_ctx);
+    }
+
+    // Print the summary based on verdicts
+    bool any_factored = false;
+    for (int i = 0; i < N; i++) {
+        if (verdicts[i]) {
+            any_factored = true;
+            char *num_str = BN_bn2dec(nums[i]); // Convert the BIGNUM to a decimal string representation
+            if (num_str) {
+                printf("Number %d (Value: %s) can be factored by its combined factors: %s\n", i, num_str, combined_factors[i]);
+                OPENSSL_free(num_str); // Free the string allocated by BN_bn2dec
+            } else {
+                printf("Failed to convert BIGNUM to string for number %d\n", i);
+            }
+        }
+    }
+
+    if (any_factored) {
+        printf("\nFAILURE. Not every number has a unique prime factor.\n");
+    } else {
+        printf("\nSUCCESS. Every number has a unique prime factor.\n");
+    }
+
+    // Freeing memory and other cleanup...
+    free(verdicts);
 
     // Free combined factors
     for (int i = 0; i < N; i++) {
