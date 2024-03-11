@@ -37,6 +37,31 @@ char* factorize(unsigned int n) {
     return result;
 }
 
+char** create_combined_factors(char ***factorizations, int num_numbers) {
+    char** combined_factors = (char**)malloc(num_numbers * sizeof(char*));
+    for (int i = 0; i < num_numbers; i++) {
+        combined_factors[i] = (char*)malloc(1024 * sizeof(char)); // Allocate space
+        combined_factors[i][0] = '\0'; // Initialize to empty string
+
+        for (int j = 0; j < num_numbers; j++) {
+            if (factorizations[i][j] != NULL) {
+                char temp_factors[1024]; // Temporary buffer for tokenizing
+                strcpy(temp_factors, factorizations[i][j]); // Copy to temp buffer
+                char* token = strtok(temp_factors, ",");
+                while (token != NULL) {
+                    if (!strstr(combined_factors[i], token)) {
+                        if (strlen(combined_factors[i]) > 0) strcat(combined_factors[i], ",");
+                        strcat(combined_factors[i], token);
+                    }
+                    token = strtok(NULL, ",");
+                }
+            }
+        }
+    }
+    return combined_factors;
+}
+
+
 int main() {
     printf("\nBEGIN FACTORING\n\n");
 
@@ -82,14 +107,18 @@ int main() {
         }
     }
 
-    // Print factorizations
+    char** combined_factors = create_combined_factors(factorizations, N);
+
+    // Print combined factors for each number
     for (int i = 0; i < N; i++) {
-        for (int j = i + 1; j < N; j++) {
-            if (factorizations[i][j] != NULL) {
-                printf("Factorization of GCD(%d, %d) is: %s\n", i, j, factorizations[i][j]);
-            }
-        }
+        printf("Combined factors for number %d: %s\n", i, combined_factors[i]);
     }
+
+    // Free combined factors
+    for (int i = 0; i < N; i++) {
+        free(combined_factors[i]);
+    }
+    free(combined_factors);
 
     // Free memory
     for (int i = 0; i < N; i++) {
@@ -106,7 +135,7 @@ int main() {
     free(factorizations);
     BN_CTX_free(bn_ctx);
 
-    printf("COMPLETE\n\n");
+    printf("\nCOMPLETE\n\n");
 
     return 0;
 }
