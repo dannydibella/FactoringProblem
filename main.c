@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #define K 256
-#define N 1000
+#define MAX_NUMBERS 1000000
 
 void generate_odd_256bit_integer(BIGNUM *num) {
     if (!BN_rand(num, K, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ODD)) {
@@ -102,9 +102,31 @@ char** create_combined_factors(char ***factorizations, int num_numbers) {
 }
 
 int main() {
+    BIGNUM **nums = (BIGNUM **)malloc(MAX_NUMBERS * sizeof(BIGNUM *));
+    
+    if (!nums) {
+        fprintf(stderr, "Initial memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    FILE *file = fopen("numbers.txt", "r");
+    if (!file) {
+        fprintf(stderr, "Failed to open numbers.txt\n");
+        exit(EXIT_FAILURE);
+    }
+
+    char line[1024];
+    int N = 0; // This will now be determined by the number of lines read from the file
+
+    while (fgets(line, sizeof(line), file) && N < MAX_NUMBERS) {
+        nums[N] = BN_new();
+        BN_dec2bn(&nums[N], line); // Convert line to BIGNUM and store in nums[N]
+        N++;
+    }
+    printf("N = %d, K = %d\n", N, K);
+
     printf("BEGIN FACTORING\n\n");
 
-    BIGNUM **nums = (BIGNUM **)malloc(N * sizeof(BIGNUM *));
     BIGNUM ***gcds = (BIGNUM ***)malloc(N * sizeof(BIGNUM **));
     char ***factorizations = (char ***)malloc(N * sizeof(char **));
     BN_CTX *bn_ctx = BN_CTX_new();
@@ -198,6 +220,11 @@ int main() {
     }
 
     // Freeing memory and other cleanup...
+    for (int i = 0; i < N; i++) {
+        BN_free(nums[i]);
+    }
+    free(nums);
+
     free(verdicts);
     for (int i = 0; i < N; i++) {
         free(combined_factors[i]);
@@ -210,7 +237,6 @@ int main() {
         free(factorizations[i]);
     }
     free(combined_factors);
-    free(nums);
     free(gcds);
     free(factorizations);
     BN_CTX_free(bn_ctx);
