@@ -8,13 +8,6 @@
 #define K 256
 #define MAX_NUMBERS 1000000
 
-void generate_odd_256bit_integer(BIGNUM *num) {
-    if (!BN_rand(num, K, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ODD)) {
-        fprintf(stderr, "Random number generation failed\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
 bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
     if (strlen(combined_factors) == 0) return false; // No factors provided
 
@@ -125,24 +118,13 @@ int main() {
     }
     printf("N = %d, K = %d\n", N, K);
 
-    printf("BEGIN FACTORING\n\n");
+    printf("BEGIN FACTORING\n");
 
     BIGNUM ***gcds = (BIGNUM ***)malloc(N * sizeof(BIGNUM **));
     char ***factorizations = (char ***)malloc(N * sizeof(char **));
     BN_CTX *bn_ctx = BN_CTX_new();
 
     printf("Memory allocation for numbers, GCDs, factorizations, and BN_CTX complete.\n");
-
-    // Generate N 256-bit numbers
-    for (int i = 0; i < N; i++) {
-        nums[i] = BN_new();
-        generate_odd_256bit_integer(nums[i]);
-        if (i % 1000 == 0) {
-            printf("Generated %d/%d 256-bit numbers.\n", i, N);
-        }
-    }
-
-    printf("All 256-bit numbers generated.\n");
 
     // Allocate 2D arrays for GCDs and factorizations
     for (int i = 0; i < N; i++) {
@@ -214,9 +196,9 @@ int main() {
     }
 
     if (!any_factored) {
-        printf("\nSUCCESS. Every number has a unique prime factor.\n");
+        printf("SUCCESS. Every number has a unique prime factor.\n");
     } else {
-        printf("\nFAILURE. Not every number has a unique prime factor.\n");
+        printf("FAILURE. Not every number has a unique prime factor.\n");
     }
 
     // Freeing memory and other cleanup...
