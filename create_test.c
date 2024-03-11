@@ -5,10 +5,13 @@
 #define N 1000
 #define K 256
 
+// Prototype for the new number generation function
+BIGNUM **generate_random_odd_BIGNUMs(int count, int bits);
+
 int main() {
     FILE *file;
-    BIGNUM *num;
     BN_CTX *ctx;
+    BIGNUM **nums;
 
     // Initialize OpenSSL BIGNUM context
     ctx = BN_CTX_new();
@@ -25,32 +28,21 @@ int main() {
         return 1;
     }
 
+    // Generate the numbers
+    nums = generate_random_odd_BIGNUMs(N, K);
+
+    // Write numbers to file and free them
     for (int i = 0; i < N; i++) {
-        // Generate a random K-bit, odd BIGNUM
-        num = BN_new();
-        if (num == NULL || !BN_rand(num, K, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ODD)) {
-            fprintf(stderr, "Failed to generate random number\n");
-            BN_free(num);
-            fclose(file);
-            BN_CTX_free(ctx);
-            return 1;
+        char *num_str = BN_bn2dec(nums[i]);
+        if (num_str != NULL) {
+            fprintf(file, "%s\n", num_str);
+            OPENSSL_free(num_str);
         }
-
-        // Convert BIGNUM to decimal string and write to file
-        char *num_str = BN_bn2dec(num);
-        if (num_str == NULL) {
-            fprintf(stderr, "Failed to convert BIGNUM to string\n");
-            BN_free(num);
-            fclose(file);
-            BN_CTX_free(ctx);
-            return 1;
-        }
-        fprintf(file, "%s\n", num_str);
-
-        // Free allocated memory
-        OPENSSL_free(num_str);
-        BN_free(num);
+        BN_free(nums[i]);
     }
+
+    // Free the array of BIGNUM pointers
+    free(nums);
 
     // Cleanup and close file
     fclose(file);
@@ -58,4 +50,27 @@ int main() {
 
     printf("Generated %d numbers of %d bits each in numbers.txt\n", N, K);
     return 0;
+}
+
+BIGNUM **generate_random_odd_BIGNUMs(int count, int bits) {
+    BIGNUM **nums = malloc(count * sizeof(BIGNUM*));
+    if (nums == NULL) {
+        fprintf(stderr, "Failed to allocate memory for BIGNUM pointers\n");
+        return NULL;
+    }
+
+    for (int i = 0; i < count; i++) {
+        nums[i] = BN_new();
+        if (nums[i] == NULL || !BN_rand(nums[i], bits, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ODD)) {
+            fprintf(stderr, "Failed to generate random number\n");
+            // Cleanup partially allocated BIGNUMs
+            for (int j = 0; j <= i; j++) {
+                BN_free(nums[j]);
+            }
+            free(nums);
+            return NULL;
+        }
+    }
+
+    return nums;
 }
