@@ -2,8 +2,8 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 
-#define N 1000
-#define K 256
+#define K 100
+#define N 100
 
 // Prototype for the new number generation function
 BIGNUM **generate_random_odd_BIGNUMs(int count, int bits);

@@ -5,8 +5,8 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define K 256
-#define MAX_NUMBERS 1000000
+#define K 100
+#define MAX_NUMBERS 1000
 
 bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
     if (strlen(combined_factors) == 0) return false; // No factors provided
