@@ -2,7 +2,7 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 
-#define K 100
+#define K 256
 #define N 100
 
 // Prototype for the new number generation function
