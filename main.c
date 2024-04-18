@@ -4,9 +4,19 @@
 #include <openssl/rand.h>
 #include <string.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 #define K 100
-#define MAX_NUMBERS 1000
+#define MAX_NUMBERS 100000
+#define NUM_THREADS 8
+
+typedef struct {
+    int start_idx;
+    int end_idx;
+    BIGNUM ***nums;
+    BIGNUM ***gcds;
+    BN_CTX *ctx;
+} ThreadData;
 
 bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
     if (strlen(combined_factors) == 0) return false; // No factors provided
@@ -94,8 +104,29 @@ char** create_combined_factors(char ***factorizations, int num_numbers) {
     return combined_factors;
 }
 
+void *compute_gcds_alternating(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    int thread_id = data->start_idx;
+
+    for (int i = thread_id; i < data->end_idx; i += NUM_THREADS) {
+        for (int j = i + 1; j < MAX_NUMBERS; j++) {
+            data->gcds[i][j] = BN_new();
+            if (!BN_gcd(data->gcds[i][j],(*data->nums)[i],(*data->nums)[j], data->ctx)) {
+                fprintf(stderr, "BN_gcd failed\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+    return NULL;
+}
+
 int main() {
     BIGNUM **nums = (BIGNUM **)malloc(MAX_NUMBERS * sizeof(BIGNUM *));
+    BIGNUM ***gcds = (BIGNUM ***)malloc(MAX_NUMBERS * sizeof(BIGNUM **));
+    char ***factorizations = (char ***)malloc(MAX_NUMBERS * sizeof(char **));
+    BN_CTX *bn_ctx = BN_CTX_new();
+    pthread_t threads[NUM_THREADS];
+    ThreadData thread_data[NUM_THREADS];
     
     if (!nums) {
         fprintf(stderr, "Initial memory allocation failed\n");
@@ -116,13 +147,9 @@ int main() {
         BN_dec2bn(&nums[N], line); // Convert line to BIGNUM and store in nums[N]
         N++;
     }
-    printf("N = %d, K = %d\n", N, K);
+    printf("N = %d, K = %d, MAX_NUMBERS = %d\n", N, K, MAX_NUMBERS);
 
     printf("BEGIN FACTORING\n");
-
-    BIGNUM ***gcds = (BIGNUM ***)malloc(N * sizeof(BIGNUM **));
-    char ***factorizations = (char ***)malloc(N * sizeof(char **));
-    BN_CTX *bn_ctx = BN_CTX_new();
 
     printf("Memory allocation for numbers, GCDs, factorizations, and BN_CTX complete.\n");
 
@@ -138,24 +165,67 @@ int main() {
 
     printf("Memory allocation for 2D arrays of GCDs and factorizations complete.\n");
 
-    // Compute GCDs, convert to unsigned int, and factorize
+    // Compute the GCDs using multithreading and parallel computing
+    for (int i = 0; i < MAX_NUMBERS; i++) {
+        nums[i] = BN_new();
+        gcds[i] = (BIGNUM **)malloc(MAX_NUMBERS * sizeof(BIGNUM *));
+        for (int j = i + 1; j < MAX_NUMBERS; j++) {
+            gcds[i][j] = NULL;  // Initialization is required here
+        }
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].start_idx = i;
+        thread_data[i].end_idx = MAX_NUMBERS;
+        thread_data[i].nums = &nums;
+        thread_data[i].gcds = gcds;
+        thread_data[i].ctx = bn_ctx;
+
+        if (pthread_create(&threads[i], NULL, compute_gcds_alternating, &thread_data[i])) {
+            fprintf(stderr, "Error creating thread\n");
+            return 1;
+        }
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Compute Factorizations of the GCDs
     for (int i = 0; i < N; i++) {
-        for (int j = i + 1; j < N; j++) { // Avoid duplicate calculations and self GCD
-            gcds[i][j] = BN_new();
-            if (!BN_gcd(gcds[i][j], nums[i], nums[j], bn_ctx)) {
-                fprintf(stderr, "BN_gcd failed\n");
-                exit(EXIT_FAILURE);
-            }
-            // Convert BIGNUM to unsigned int and factorize
-            unsigned int gcd_uint = BN_get_word(gcds[i][j]);
-            if (gcd_uint != (unsigned int)-1) { // Check conversion success
-                factorizations[i][j] = factorize(gcd_uint);
+        for (int j = i + 1; j < N; j++) {
+            if (gcds[i][j] != NULL) {  // Ensure GCD was successfully computed
+                unsigned int gcd_uint = BN_get_word(gcds[i][j]);
+                if (gcd_uint != (unsigned int)-1) { // Check conversion success
+                    factorizations[i][j] = factorize(gcd_uint);
+                } else {
+                    fprintf(stderr, "Failed to convert GCD to unsigned int\n");
+                }
             }
         }
         if (i % 100 == 0) {
             printf("Computed GCDs and factorizations for %d/%d numbers.\n", i, N);
         }
     }
+
+    // Old method for computing GCDs and Factorizations
+    // for (int i = 0; i < N; i++) {
+    //     for (int j = i + 1; j < N; j++) { // Avoid duplicate calculations and self GCD
+    //         // gcds[i][j] = BN_new();
+    //         // if (!BN_gcd(gcds[i][j], nums[i], nums[j], bn_ctx)) {
+    //         //     fprintf(stderr, "BN_gcd failed\n");
+    //         //     exit(EXIT_FAILURE);
+    //         // }
+    //         // Convert BIGNUM to unsigned int and factorize
+    //         unsigned int gcd_uint = BN_get_word(gcds[i][j]);
+    //         if (gcd_uint != (unsigned int)-1) { // Check conversion success
+    //             factorizations[i][j] = factorize(gcd_uint);
+    //         }
+    //     }
+    //     if (i % 100 == 0) {
+    //         printf("Computed GCDs and factorizations for %d/%d numbers.\n", i, N);
+    //     }
+    // }
 
     printf("GCDs computed and factorized for all numbers.\n");
 
@@ -203,25 +273,36 @@ int main() {
 
     // Freeing memory and other cleanup...
     for (int i = 0; i < N; i++) {
-        BN_free(nums[i]);
-    }
-    free(nums);
+        BN_free(nums[i]); // Free each BIGNUM in nums array
 
-    free(verdicts);
-    for (int i = 0; i < N; i++) {
-        free(combined_factors[i]);
-        BN_free(nums[i]);
         for (int j = i + 1; j < N; j++) {
-            BN_free(gcds[i][j]);
-            free(factorizations[i][j]);
+            if (gcds[i][j] != NULL) { // Ensure that GCDs that were allocated are freed
+                BN_free(gcds[i][j]);
+            }
+            if (factorizations[i][j] != NULL) { // Free factorization results
+                free(factorizations[i][j]);
+            }
         }
-        free(gcds[i]);
-        free(factorizations[i]);
+        free(gcds[i]);  // Free the inner array of gcds for each i
+        free(factorizations[i]); // Free the inner array of factorizations for each i
     }
-    free(combined_factors);
-    free(gcds);
-    free(factorizations);
-    BN_CTX_free(bn_ctx);
+
+    free(nums); // Free the array of pointers to BIGNUMs
+    free(gcds); // Free the outer array of pointers to pointers to BIGNUMs
+    free(factorizations); // Free the outer array of pointers to char pointers
+
+    if (verdicts != NULL) { // Check if verdicts was allocated and needs to be freed
+        free(verdicts);
+    }
+
+    for (int i = 0; i < N; i++) {
+        if (combined_factors[i] != NULL) { // Ensure each combined factor string is freed
+            free(combined_factors[i]);
+        }
+    }
+    free(combined_factors); // Free the array of combined factors
+
+    BN_CTX_free(bn_ctx); // Free the BN_CTX
 
     printf("Memory freed and program completed.\n");
 
