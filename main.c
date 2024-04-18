@@ -102,7 +102,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    FILE *file = fopen("numbers.txt", "r");
+    FILE *file = fopen("insecure_numbers.txt", "r");
     if (!file) {
         fprintf(stderr, "Failed to open numbers.txt\n");
         exit(EXIT_FAILURE);
