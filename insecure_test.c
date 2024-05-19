@@ -79,9 +79,9 @@ void generate_insecure_numbers(char *output_file, BIGNUM **primes, int count) {
     OPENSSL_free(num_str);
 
     // Generate next numbers using previous prime factor
-    for (int i = 1; i < index; i++) {
+    for (int i = 0; i < index; i++) {
         BIGNUM *num = BN_new();
-        BN_copy(num, primes[i - 1]);
+        BN_copy(num, primes[i]);
 
         while (BN_num_bits(num) < K) {
             int rand_index = rand() % count;

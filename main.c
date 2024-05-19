@@ -6,10 +6,10 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-#define K 100
-#define MAX_NUMBERS 10000
+#define K 256
+#define MAX_NUMBERS 1000
 #define NUM_THREADS 8
-#define TESTFILE "my_test.txt"
+#define TESTFILE "insecure_numbers.txt"
 
 typedef struct {
     int start_idx;
