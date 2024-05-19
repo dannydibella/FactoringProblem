@@ -7,8 +7,9 @@
 #include <pthread.h>
 
 #define K 100
-#define MAX_NUMBERS 100000
+#define MAX_NUMBERS 10000
 #define NUM_THREADS 8
+#define TESTFILE "my_test.txt"
 
 typedef struct {
     int start_idx;
@@ -133,9 +134,9 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    FILE *file = fopen("numbers.txt", "r");
+    FILE *file = fopen(TESTFILE, "r");
     if (!file) {
-        fprintf(stderr, "Failed to open numbers.txt\n");
+        fprintf(stderr, "Failed to open textfile\n");
         exit(EXIT_FAILURE);
     }
 
@@ -187,6 +188,21 @@ int main() {
         }
     }
 
+    // Print the GCDs
+    for (int i = 0; i < N; i++) {
+        for (int j = i + 1; j < N; j++) {
+            if (gcds[i][j] != NULL) {
+                char *gcd_str = BN_bn2dec(gcds[i][j]); // Convert the BIGNUM to a decimal string representation
+                if (gcd_str) {
+                    printf("GCD of number %d and number %d: %s\n", i, j, gcd_str);
+                    OPENSSL_free(gcd_str); // Free the string allocated by BN_bn2dec
+                } else {
+                    printf("Failed to convert GCD to string for numbers %d and %d\n", i, j);
+                }
+            }
+        }
+    }
+
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
     }
@@ -205,6 +221,15 @@ int main() {
         }
         if (i % 100 == 0) {
             printf("Computed GCDs and factorizations for %d/%d numbers.\n", i, N);
+        }
+    }
+
+    // Print the factorizations
+    for (int i = 0; i < N; i++) {
+        for (int j = i + 1; j < N; j++) {
+            if (factorizations[i][j] != NULL) {
+                printf("Factorization of GCD between number %d and number %d: %s\n", i, j, factorizations[i][j]);
+            }
         }
     }
 
@@ -232,6 +257,10 @@ int main() {
     char** combined_factors = create_combined_factors(factorizations, N);
 
     printf("Combined factors created for all numbers.\n");
+
+    for (int i = 0; i < N; i++) {
+        printf("Combined factors for number %d: %s\n", i, combined_factors[i]);
+    }
 
     // Allocate memory for the verdicts array
     bool *verdicts = (bool *)malloc(N * sizeof(bool));

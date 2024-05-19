@@ -5,7 +5,7 @@
 #include <time.h>
 
 #define K 256  // Bit length of the numbers to generate
-#define N 1000 // Number of numbers to generate
+#define N 10000 // Number of numbers to generate
 #define G 1000000 // Number of prime numbers in provided text files
 
 // Function Prototypes

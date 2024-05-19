@@ -3,7 +3,7 @@
 #include <openssl/rand.h>
 
 #define K 256
-#define N 100000
+#define N 10000
 
 // Prototype for the new number generation function
 BIGNUM **generate_random_odd_BIGNUMs(int count, int bits);
@@ -21,7 +21,7 @@ int main() {
     }
 
     // Open file to write numbers
-    file = fopen("numbers.txt", "w");
+    file = fopen("unknown_numbers.txt", "w");
     if (file == NULL) {
         fprintf(stderr, "Failed to open file for writing\n");
         BN_CTX_free(ctx);
