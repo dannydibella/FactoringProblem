@@ -7,6 +7,7 @@
 
 #define K 100
 #define MAX_NUMBERS 1000
+#define TESTFILE "insecure_numbers.txt"
 
 bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
     if (strlen(combined_factors) == 0) return false; // No factors provided
@@ -102,9 +103,9 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    FILE *file = fopen("insecure_numbers.txt", "r");
+    FILE *file = fopen(TESTFILE, "r");
     if (!file) {
-        fprintf(stderr, "Failed to open numbers.txt\n");
+        fprintf(stderr, "Failed to open %s\n", TESTFILE);
         exit(EXIT_FAILURE);
     }
 
