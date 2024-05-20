@@ -9,14 +9,13 @@
 #define K 256
 #define MAX_NUMBERS 1000
 #define NUM_THREADS 8
-#define TESTFILE "insecure_numbers.txt"
+#define TESTFILE "unknown_numbers.txt"
 
 typedef struct {
     int start_idx;
     int end_idx;
-    BIGNUM ***nums;
+    BIGNUM **nums;
     BIGNUM ***gcds;
-    BN_CTX *ctx;
 } ThreadData;
 
 bool can_be_factored_by_combined_factors(BIGNUM *num, char* combined_factors, BN_CTX *ctx) {
@@ -107,19 +106,33 @@ char** create_combined_factors(char ***factorizations, int num_numbers) {
 
 void *compute_gcds_alternating(void *arg) {
     ThreadData *data = (ThreadData *)arg;
-    int thread_id = data->start_idx;
+    BN_CTX *ctx = BN_CTX_new(); // Each thread creates its own BN_CTX
 
-    for (int i = thread_id; i < data->end_idx; i += NUM_THREADS) {
-        for (int j = i + 1; j < MAX_NUMBERS; j++) {
+    for (int i = data->start_idx; i < data->end_idx; i += NUM_THREADS) {
+        for (int j = i + 1; j < data->end_idx; j++) {
             data->gcds[i][j] = BN_new();
-            if (!BN_gcd(data->gcds[i][j],(*data->nums)[i],(*data->nums)[j], data->ctx)) {
-                fprintf(stderr, "BN_gcd failed\n");
+            
+            // Print the numbers before computing GCD
+            char *num_i_str = BN_bn2dec(data->nums[i]);
+            char *num_j_str = BN_bn2dec(data->nums[j]);
+            OPENSSL_free(num_i_str);
+            OPENSSL_free(num_j_str);
+            
+            if (!BN_gcd(data->gcds[i][j], data->nums[i], data->nums[j], ctx)) {
+                fprintf(stderr, "BN_gcd failed for numbers %d and %d\n", i, j);
                 exit(EXIT_FAILURE);
             }
+
+            // Print the GCD for debugging
+            char *gcd_str = BN_bn2dec(data->gcds[i][j]);
+            OPENSSL_free(gcd_str);
         }
     }
+
+    BN_CTX_free(ctx); // Free the context after use
     return NULL;
 }
+
 
 int main() {
     BIGNUM **nums = (BIGNUM **)malloc(MAX_NUMBERS * sizeof(BIGNUM *));
@@ -166,26 +179,23 @@ int main() {
 
     printf("Memory allocation for 2D arrays of GCDs and factorizations complete.\n");
 
-    // Compute the GCDs using multithreading and parallel computing
-    for (int i = 0; i < MAX_NUMBERS; i++) {
-        nums[i] = BN_new();
-        gcds[i] = (BIGNUM **)malloc(MAX_NUMBERS * sizeof(BIGNUM *));
-        for (int j = i + 1; j < MAX_NUMBERS; j++) {
-            gcds[i][j] = NULL;  // Initialization is required here
-        }
-    }
-
     for (int i = 0; i < NUM_THREADS; i++) {
         thread_data[i].start_idx = i;
         thread_data[i].end_idx = MAX_NUMBERS;
-        thread_data[i].nums = &nums;
+        thread_data[i].nums = nums;
         thread_data[i].gcds = gcds;
-        thread_data[i].ctx = bn_ctx;
+
+        printf("Creating thread %d with range %d to %d\n", i, i, N);
 
         if (pthread_create(&threads[i], NULL, compute_gcds_alternating, &thread_data[i])) {
             fprintf(stderr, "Error creating thread\n");
             return 1;
         }
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+        printf("Thread %d has finished execution\n", i);
     }
 
     // Print the GCDs
@@ -194,7 +204,6 @@ int main() {
             if (gcds[i][j] != NULL) {
                 char *gcd_str = BN_bn2dec(gcds[i][j]); // Convert the BIGNUM to a decimal string representation
                 if (gcd_str) {
-                    printf("GCD of number %d and number %d: %s\n", i, j, gcd_str);
                     OPENSSL_free(gcd_str); // Free the string allocated by BN_bn2dec
                 } else {
                     printf("Failed to convert GCD to string for numbers %d and %d\n", i, j);
@@ -224,15 +233,6 @@ int main() {
         }
     }
 
-    // Print the factorizations
-    for (int i = 0; i < N; i++) {
-        for (int j = i + 1; j < N; j++) {
-            if (factorizations[i][j] != NULL) {
-                printf("Factorization of GCD between number %d and number %d: %s\n", i, j, factorizations[i][j]);
-            }
-        }
-    }
-
     // Old method for computing GCDs and Factorizations
     // for (int i = 0; i < N; i++) {
     //     for (int j = i + 1; j < N; j++) { // Avoid duplicate calculations and self GCD
@@ -257,10 +257,6 @@ int main() {
     char** combined_factors = create_combined_factors(factorizations, N);
 
     printf("Combined factors created for all numbers.\n");
-
-    for (int i = 0; i < N; i++) {
-        printf("Combined factors for number %d: %s\n", i, combined_factors[i]);
-    }
 
     // Allocate memory for the verdicts array
     bool *verdicts = (bool *)malloc(N * sizeof(bool));
