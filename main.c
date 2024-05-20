@@ -6,8 +6,8 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-#define K 256
-#define MAX_NUMBERS 1000
+#define K 512
+#define MAX_NUMBERS 10000
 #define NUM_THREADS 8
 #define TESTFILE "unknown_numbers.txt"
 
@@ -127,6 +127,7 @@ void *compute_gcds_alternating(void *arg) {
             char *gcd_str = BN_bn2dec(data->gcds[i][j]);
             OPENSSL_free(gcd_str);
         }
+        printf("Thread %d completed row %d\n", data->start_idx, i);
     }
 
     BN_CTX_free(ctx); // Free the context after use
